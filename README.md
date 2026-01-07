@@ -2,15 +2,15 @@
 
 ## Run
 
-```
-> go install github.com/a-h/templ/cmd/templ@latest
-> go mod download
-> templ generate && go run .
+```sh
+go install github.com/a-h/templ/cmd/templ@latest
+go mod download
+templ generate && go run .
 ```
 
 ## Demo
 
-```
+```golang
 type Book struct {
 	ISBN   string `gorm:"column:ISBN;primaryKey" label:"ISBN"`
 	Title  string `gorm:"column:Title" label:"Title"`
