@@ -1,0 +1,108 @@
+package declarative
+
+import "gorm.io/gorm" 
+import "net/http"    
+import "strings"
+import "reflect"
+import "fmt"
+
+
+templ Webpage(t templ.Component) {
+    <html>
+    <head>
+        <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+    </head>
+    <body>
+        @t
+    </body>
+    </html>
+}
+
+func addRow(db *gorm.DB, e Entity, w http.ResponseWriter, r *http.Request) {
+    db.Create(e)
+    Row(e).Render(r.Context(), w)
+} 
+
+func remRow(db *gorm.DB, e Entity, w http.ResponseWriter, r *http.Request) {
+    t := reflect.ValueOf(e).Elem().Type()
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+        gormTag := f.Tag.Get("gorm")
+		if strings.Contains(gormTag, "primaryKey") {
+			if strings.HasPrefix(gormTag, "column") {
+                v := strings.Split(strings.Split(gormTag, ":")[1], ";")[0]
+				db.Delete(e, fmt.Sprintf("%s = ?", v), r.FormValue(v))
+			}
+		}
+    }
+
+}
+
+templ Row(e Entity) {
+    <tr>
+        <form>
+            <td><input type="checkbox" hx-on:click="document.querySelector('#removeButton').disabled=document.querySelectorAll('input:checked').length == 0"></td>
+            for _, entry := range Fields(e) {
+                <td><input name={entry.Key} type="text" value={entry.Value}></td>
+            }           
+        </form>
+    </tr>
+}
+
+templ View(db *gorm.DB, d *EntityView) {
+    <html style="padding: 50px">
+    <head><script src="https://unpkg.com/htmx.org@2.0.3"></script></head>
+    <body class={body}>
+        <div>
+            <p style="float: left;" class={titlebar}>#{d.Title()} </p>
+            <div style="float: left; margin-left: 20px; padding-top: 5px">
+                <button id="saveButton">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" width="12.25" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M48 96l0 320c0 8.8 7.2 16 16 16l320 0c8.8 0 16-7.2 16-16l0-245.5c0-4.2-1.7-8.3-4.7-11.3l33.9-33.9c12 12 18.7 28.3 18.7 45.3L448 416c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96C0 60.7 28.7 32 64 32l245.5 0c17 0 33.3 6.7 45.3 18.7l74.5 74.5-33.9 33.9L320.8 84.7c-.3-.3-.5-.5-.8-.8L320 184c0 13.3-10.7 24-24 24l-192 0c-13.3 0-24-10.7-24-24L80 80 64 80c-8.8 0-16 7.2-16 16zm80-16l0 80 144 0 0-80L128 80zm32 240a64 64 0 1 1 128 0 64 64 0 1 1 -128 0z"/></svg>
+                </button>
+                <button id="addButton" hx-post={"/" + strings.ToLower(d.Title()) +"/add"} hx-target="#table" hx-swap="afterbegin">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" width="12.25" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z"/></svg>
+                </button>
+                <button id="removeButton" hx-post={"/" + strings.ToLower(d.Title()) +"/rem"} hx-target="#table tr:has(td input:checked)" hx-swap="outerHTML" hx-include="#table tr:has(td input:checked)" disabled hx-on::after-request="this.disabled=true">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" width="12.25" viewBox="0 0 448 512"><!--!Font Awesome Free 6.7.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14.3-32 32-32l352 0c17.7 0 32 14.3 32 32z"/></svg>
+                </button>
+            </div>
+            <hr style="clear: both"> 
+            
+            <table style="clear: both">
+                <thead>
+                    <tr>
+                        <th></th>
+                        for _, h := range d.Headers() {
+                            <th align="left">{h}</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody id="table">
+                    for _, e := range d.Entities(){
+                        @Row(e)
+                    }
+                </tbody>
+            </table>
+        </div>
+    </body>
+    </html>
+}
+
+css body() {
+    font-family: Calibri, sans-serif;
+    max-width: 1000px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    padding: 2px;
+}
+
+css titlebar() {
+    font-size: 16px;
+    font-weight: bold;
+    padding: 5px;
+    margin: 0px;
+}
+
+css hr() {
+    margin-top: 0px;
+}
